@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Volt // ELPORT</title>
+    <style>
+        :root { --blue: #3b82f6; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, system-ui, sans-serif; 
+            background: #000; color: #fff; padding: 20px;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+            overflow-x: hidden; touch-action: manipulation;
+        }
+        #star-canvas { position: fixed; inset: 0; z-index: -1; background: #000; pointer-events: none; }
+        #ufo-container { position: absolute; width: 80px; height: 50px; pointer-events: none; z-index: 5; filter: drop-shadow(0 0 15px var(--blue)); }
+        
+        .wrapper { width: 100%; max-width: 450px; z-index: 10; position: relative; }
+        header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; width: 100%; }
+        h1 { margin: 0; font-size: 32px; letter-spacing: -1.5px; }
+        .branding { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 2px; text-transform: uppercase; margin-left: 10px; }
+        .tagline { font-size: 9px; color: rgba(255,255,255,0.5); letter-spacing: 1.5px; text-transform: uppercase; margin: 4px 0; }
+        #status { font-size: 10px; color: var(--blue); font-weight: bold; text-transform: uppercase; }
+
+        .panel { 
+            background: rgba(255,255,255,0.06); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            border: 1.5px solid var(--blue); border-radius: 32px; padding: 24px;
+            display: flex; flex-direction: column; gap: 20px; box-shadow: 0 0 25px rgba(59, 130, 246, 0.2), 0 20px 50px rgba(0,0,0,0.9);
+        }
+
+        /* BULLETPROOF PICKER: The input is the actual hit target */
+        .upload-box { 
+            border: 2px dashed rgba(255,255,255,0.1); border-radius: 20px; padding: 40px 20px; 
+            text-align: center; cursor: pointer; position: relative; background: rgba(255,255,255,0.02);
+            overflow: hidden;
+        }
+        #fileInput { 
+            position: absolute; inset: 0; width: 100%; height: 100%; 
+            opacity: 0; cursor: pointer; z-index: 100;
+            display: block !important;
+        }
+        .file-label { font-size: 13px; color: rgba(255,255,255,0.6); pointer-events: none; position: relative; z-index: 1; }
+
+        .controls { opacity: 0.15; pointer-events: none; transition: 0.4s ease; display: flex; flex-direction: column; gap: 20px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        label { font-size: 9px; font-weight: 800; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-bottom: 4px; display: block; }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; height: 30px; }
+        input[type=range]::-webkit-slider-runnable-track { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #fff; margin-top: -11px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+
+        .engine-display { font-size: 10px; font-weight: bold; text-align: right; color: var(--blue); min-width: 65px; }
+        .modes { display: flex; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 12px; gap: 4px; }
+        .m-btn { flex: 1; border: none; background: transparent; color: #555; font-size: 9px; font-weight: bold; padding: 10px; border-radius: 10px; cursor: pointer; }
+        .m-btn.active { background: #fff; color: #000; }
+
+        .hud-container { position: relative; width: 100%; height: 80px; margin-top: 5px; }
+        .hud-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 16px; }
+        .hud-corner { position: absolute; width: 10px; height: 10px; border: 1.5px solid var(--blue); }
+        .top-left { top: 5px; left: 5px; border-right: none; border-bottom: none; }
+        .top-right { top: 5px; right: 5px; border-left: none; border-bottom: none; }
+        .bottom-left { bottom: 5px; left: 5px; border-right: none; border-top: none; }
+        .bottom-right { bottom: 5px; right: 5px; border-left: none; border-top: none; }
+        
+        .hud-text { position: absolute; font-size: 7px; color: #fff; font-family: monospace; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; }
+        .hud-scanline { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: rgba(59, 130, 246, 0.05); animation: scan 3s linear infinite; }
+        @keyframes scan { from { top: 0; } to { top: 100%; } }
+
+        canvas#viz { width: 100%; height: 100%; border-radius: 16px; background: rgba(0,0,0,0.5); }
+        
+        .actions { display: flex; gap: 10px; }
+        #playBtn { flex: 2; height: 60px; border-radius: 30px; border: none; background: #fff; font-weight: 800; font-size: 16px; cursor: pointer; color: #000; }
+        #exportBtn { flex: 1; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #fff; font-size: 10px; font-weight: bold; cursor: pointer; }
+        #glitch { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px; border-radius: 18px; font-size: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <canvas id="star-canvas"></canvas>
+    <div id="ufo-container">
+        <svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
+            <path id="ufo-beam" d="M30 40 L70 40 L85 80 L15 80 Z" fill="rgba(59, 130, 246, 0.2)" opacity="0"/>
+            <ellipse cx="50" cy="30" rx="45" ry="12" fill="#333" stroke="#666" stroke-width="1"/>
+            <ellipse cx="50" cy="26" rx="20" ry="15" fill="rgba(59, 130, 246, 0.3)" stroke="#fff" stroke-width="0.5"/>
+            <circle cx="25" cy="32" r="1.5" fill="#fff" /><circle cx="50" cy="35" r="1.5" fill="#fff" /><circle cx="75" cy="32" r="1.5" fill="#fff" />
+        </svg>
+    </div>
+    <div class="wrapper">
+        <header>
+            <div>
+                <div style="display: flex; align-items: baseline;"><h1>Volt</h1><span class="branding">By : ELPORT</span></div>
+                <div class="tagline">Analog Synth Atomizer</div>
+                <div id="status">System Ready</div>
+            </div>
+            <button id="glitch">🎲</button>
+        </header>
+        <div class="panel">
+            <div class="upload-box">
+                <!-- Accept multiple audio mime types for higher mobile compatibility -->
+                <input type="file" id="fileInput" accept="audio/*,audio/wav,audio/mpeg,audio/mp3">
+                <div id="fileLabel" class="file-label">Tap to Atomize WAV/MP3</div>
+            </div>
+            <div id="controls" class="controls">
+                <div class="row">
+                    <div><label>Drive</label><input type="range" id="drive" min="1" max="50" value="1"></div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between"><label>Engine</label><span id="engineLabel" class="engine-display">LEAD</span></div>
+                        <input type="range" id="engineType" min="0" max="3" step="1" value="1">
+                    </div>
+                </div>
+                <div class="row">
+                    <div><label>Tone</label><input type="range" id="tone" min="-12" max="12" value="0"></div>
+                    <div><label>Ghost Reverb</label><input type="range" id="reverbMix" min="0" max="1" step="0.01" value="0"></div>
+                </div>
+                <div>
+                    <label>Delay Dimension</label>
+                    <div class="modes">
+                        <button class="m-btn active" data-mode="wide">WIDE</button>
+                        <button class="m-btn" data-mode="pingpong">PONG</button>
+                        <button class="m-btn" data-mode="slap">SLAP</button>
+                    </div>
+                    <input type="range" id="delayMix" min="0" max="0.8" step="0.01" value="0">
+                </div>
+                <div class="hud-container">
+                    <div class="hud-overlay">
+                        <div class="hud-corner top-left"></div><div class="hud-corner top-right"></div><div class="hud-corner bottom-left"></div><div class="hud-corner bottom-right"></div>
+                        <div class="hud-scanline"></div>
+                        <span class="hud-text" style="top: 8px; left: 20px;">SPECTRUM ANALYZER</span>
+                        <div style="position: absolute; bottom: 8px; right: 20px; text-align: right;">
+                            <span id="hud-db" class="hud-text" style="position: static; display: block;">dB: -Inf</span>
+                            <span id="hud-lufs" class="hud-text" style="position: static; display: block; margin-top: 2px;">LUFS: -Inf</span>
+                        </div>
+                    </div>
+                    <canvas id="viz"></canvas>
+                </div>
+                <div class="actions"><button id="playBtn">PLAY</button><button id="exportBtn">Save HQ</button></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Error safety wrapper
+            try {
+                const dom = {
+                    file: document.getElementById('fileInput'),
+                    label: document.getElementById('fileLabel'),
+                    status: document.getElementById('status'),
+                    ctrls: document.getElementById('controls'),
+                    play: document.getElementById('playBtn'),
+                    export: document.getElementById('exportBtn'),
+                    glitch: document.getElementById('glitch'),
+                    drive: document.getElementById('drive'),
+                    engine: document.getElementById('engineType'),
+                    engineLbl: document.getElementById('engineLabel'),
+                    tone: document.getElementById('tone'),
+                    rev: document.getElementById('reverbMix'),
+                    dMix: document.getElementById('delayMix'),
+                    db: document.getElementById('hud-db'),
+                    lufs: document.getElementById('hud-lufs'),
+                    ufo: document.getElementById('ufo-container'),
+                    beam: document.getElementById('ufo-beam'),
+                    starCanvas: document.getElementById('star-canvas')
+                };
+
+                let ctx, source, dNode, shp, flt, rev, revG, duck, dL, dR, fbL, fbR, pL, pR, dMixG, anal, det, buffer, playing = false;
+                let starV = 0, targetV = 0, ufoA = 0, ufoT = 0, mRot = 0;
+                const sX = dom.starCanvas.getContext('2d');
+                let stars = [];
+
+                function initStars() { 
+                    dom.starCanvas.width = window.innerWidth; 
+                    dom.starCanvas.height = window.innerHeight; 
+                    stars = []; 
+                    for(let i=0; i<150; i++) stars.push({x: Math.random()*dom.starCanvas.width, y: Math.random()*dom.starCanvas.height, z: Math.random()*dom.starCanvas.width, size: Math.random()*2, color: Math.random()>0.8?'#3b82f6':'#fff'});
+                }
+                
+                function animate() { 
+                    starV += (targetV - starV) * 0.1; targetV *= 0.92;
+                    sX.fillStyle = "#000"; sX.fillRect(0,0,dom.starCanvas.width,dom.starCanvas.height); 
+                    mRot += starV * 0.005;
+                    const cX = dom.starCanvas.width/2, cY = dom.starCanvas.height/2;
+                    sX.save(); sX.translate(cX, cY); sX.rotate(mRot);
+                    const g = sX.createRadialGradient(0,0,0,0,0,dom.starCanvas.width*0.8);
+                    g.addColorStop(0,'rgba(59,130,246,0.1)'); g.addColorStop(0.4,'rgba(147,51,234,0.05)'); g.addColorStop(1,'rgba(0,0,0,0)');
+                    sX.fillStyle = g; sX.beginPath(); sX.ellipse(0,0,dom.starCanvas.width*0.8,dom.starCanvas.height*0.3,0,0,Math.PI*2); sX.fill(); sX.restore();
+                    sX.fillStyle = "#fff"; 
+                    stars.forEach(s => { 
+                        s.z -= (starV*2); if(s.z<=0) s.z=dom.starCanvas.width; 
+                        let k=128/s.z, px=(s.x-cX)*k+cX, py=(s.y-cY)*k+cY; 
+                        if(px>=0 && px<=dom.starCanvas.width && py>=0 && py<=dom.starCanvas.height) { sX.globalAlpha=1-(s.z/dom.starCanvas.width); sX.fillStyle=s.color; sX.fillRect(px,py,s.size*k*0.5,s.size*k*0.5); }
+                    });
+                    sX.globalAlpha = 1.0;
+                    ufoA += (Math.max(0.2, starV)*0.05);
+                    const ux = cX + Math.cos(ufoA)*150-40, uy = dom.starCanvas.height-80+Math.sin(ufoA*2)*40;
+                    dom.ufo.style.transform = `translate(${ux}px, ${uy}px) rotate(${ufoT+Math.cos(ufoA)*10}deg)`;
+                    dom.beam.style.opacity = playing ? Math.abs(Math.sin(Date.now()*0.005))*0.4 : 0;
+                    requestAnimationFrame(animate); 
+                }
+                initStars(); animate();
+
+                function makeCurve(k, t) { 
+                    const n=44100, c=new Float32Array(n); 
+                    for(let i=0;i<n;i++){ 
+                        let x=(i*2)/n-1; 
+                        if (t===0) c[i]=Math.tanh(x*(k*0.8))+(Math.sin(x*Math.PI)*0.05);
+                        else if (t===2) c[i]=(x<0?Math.max(x,-0.4):Math.min(x,0.4))*(k*0.15);
+                        else if (t===3) c[i]=Math.sin(x*(Math.PI/2))*(1+k/100);
+                        else c[i]=((3+k)*x*22*(Math.PI/180))/(Math.PI+k*Math.abs(x));
+                    } return c; 
+                }
+
+                async function initAudio() {
+                    if(ctx) return;
+                    ctx = new(window.AudioContext||window.webkitAudioContext)();
+                    dNode = ctx.createGain(); shp = ctx.createWaveShaper(); shp.oversample='4x';
+                    flt = ctx.createBiquadFilter(); flt.type='lowshelf';
+                    dL = ctx.createDelay(1); dR = ctx.createDelay(1); fbL = ctx.createGain(); fbR = ctx.createGain();
+                    fbL.gain.value = 0; fbR.gain.value = 0;
+                    pL = ctx.createStereoPanner(); pR = ctx.createStereoPanner(); dMixG = ctx.createGain();
+                    rev = ctx.createConvolver();
+                    const len=ctx.sampleRate*2.5, ir=ctx.createBuffer(2,len,ctx.sampleRate);
+                    for(let c=0;c<2;c++){ let d=ir.getChannelData(c); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.5); }
+                    rev.buffer=ir; revG = ctx.createGain(); duck = ctx.createGain(); 
+                    const out = ctx.createGain(); out.gain.value=0.8;
+                    anal = ctx.createAnalyser(); det = ctx.createAnalyser(); det.fftSize=256;
+                    dNode.connect(shp); shp.connect(flt); flt.connect(out);
+                    flt.connect(dL); flt.connect(dR); dL.connect(fbL); fbL.connect(dL); dR.connect(fbR); fbR.connect(dR);
+                    dL.connect(pL); pL.connect(dMixG); dR.connect(pR); pR.connect(dMixG); dMixG.connect(out);
+                    flt.connect(rev); rev.connect(revG); revG.connect(duck); duck.connect(out);
+                    flt.connect(det); out.connect(anal); anal.connect(ctx.destination);
+                    setMode('wide'); updateParams();
+                }
+
+                function setMode(m) {
+                    document.querySelectorAll('.m-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+                    if(!ctx) return;
+                    let t = ctx.currentTime;
+                    if(m==='wide'){ dL.delayTime.setTargetAtTime(0.4,t,0.1); dR.delayTime.setTargetAtTime(0.6,t,0.1); fbL.gain.setTargetAtTime(0.5,t,0.1); fbR.gain.setTargetAtTime(0.5,t,0.1); }
+                    if(m==='pingpong'){ dL.delayTime.setTargetAtTime(0.375,t,0.1); dR.delayTime.setTargetAtTime(0.75,t,0.1); fbL.gain.setTargetAtTime(0.55,t,0.1); fbR.gain.setTargetAtTime(0.55,t,0.1); }
+                    if(m==='slap'){ dL.delayTime.setTargetAtTime(0.08,t,0.1); dR.delayTime.setTargetAtTime(0.09,t,0.1); fbL.gain.setTargetAtTime(0,t,0.1); fbR.gain.setTargetAtTime(0,t,0.1); }
+                }
+
+                dom.file.onchange = async (e) => {
+                    const f = e.target.files[0]; if(!f) return;
+                    dom.status.innerText="Processing...";
+                    try {
+                        const ab = await f.arrayBuffer();
+                        const dCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        dCtx.decodeAudioData(ab, data => {
+                            buffer = data; 
+                            dom.label.innerText = f.name; 
+                            dom.ctrls.style.opacity = "1"; 
+                            dom.ctrls.style.pointerEvents = "all"; 
+                            dom.status.innerText = "Volt Ready"; 
+                            dCtx.close();
+                            const vC=document.getElementById('viz'), vX=vC.getContext('2d');
+                            function render(){
+                                requestAnimationFrame(render);
+                                if(playing && det){ 
+                                    let d=new Uint8Array(det.frequencyBinCount); det.getByteTimeDomainData(d); 
+                                    let p=0, rms=0; for(let i=0; i<d.length; i++) { let v=(d[i]-128)/128; p=Math.max(p,Math.abs(v)); rms += v*v; } 
+                                    rms = Math.sqrt(rms / d.length);
+                                    if (p > 0.04) duck.gain.setTargetAtTime(Math.max(0,1-(p*8)),ctx.currentTime,0.015); 
+                                    else duck.gain.setTargetAtTime(1.0,ctx.currentTime,0.28);
+                                    let dbV = 20*Math.log10(p+0.0001), luV = 20*Math.log10(rms+0.0001) - 0.6;
+                                    dom.db.innerText = `dB: ${dbV < -60 ? '-Inf' : dbV.toFixed(1)}`;
+                                    dom.lufs.innerText = `LUFS: ${luV < -60 ? '-Inf' : luV.toFixed(1)}`;
+                                }
+                                let da=new Uint8Array(128); anal.getByteFrequencyData(da); vX.clearRect(0,0,vC.width,vC.height); vX.fillStyle="#3b82f6";
+                                for(let i=0;i<128;i++) vX.fillRect(i*(vC.width/128)*2, vC.height-(da[i]/255)*vC.height, 2, (da[i]/255)*vC.height);
+                            } render();
+                        }, err => { dom.status.innerText = "Format Error"; });
+                    } catch(err) { dom.status.innerText = "Engine Error"; }
+                };
+
+                dom.play.onclick = async () => {
+                    await initAudio(); if(ctx.state==='suspended') await ctx.resume();
+                    if(playing){ source.stop(); playing=false; dom.play.innerText="PLAY"; dom.play.style.background="#fff"; dom.play.style.color="#000"; }
+                    else if(buffer) { source=ctx.createBufferSource(); source.buffer=buffer; source.connect(dNode); source.loop=true; source.start(0); playing=true; dom.play.innerText="STOP"; dom.play.style.background="#3b82f6"; dom.play.style.color="#fff"; }
+                };
+
+                function updateParams() { 
+                    const type = parseInt(dom.engine.value); dom.engineLbl.innerText = ["BASS", "LEAD", "PLUCK", "PAD"][type];
+                    if(!ctx) return;
+                    targetV = 4.0; const dV = parseFloat(dom.drive.value), tV = parseFloat(dom.tone.value);
+                    shp.curve = makeCurve(dV*2.5, type); ufoT = tV*2;
+                    if (type===0) { flt.type='lowpass'; flt.frequency.setTargetAtTime(300+(tV*40),ctx.currentTime,0.05); }
+                    else if (type===2) { flt.type='highpass'; flt.frequency.setTargetAtTime(1200+(tV*120),ctx.currentTime,0.05); }
+                    else if (type===3) { flt.type='bandpass'; flt.frequency.setTargetAtTime(1000+(tV*80),ctx.currentTime,0.05); }
+                    else { flt.type='lowshelf'; flt.frequency.setTargetAtTime(800,ctx.currentTime,0.05); flt.gain.setTargetAtTime(tV,ctx.currentTime,0.05); }
+                    dNode.gain.setTargetAtTime(1+(dV/15),ctx.currentTime,0.05); dMixG.gain.setTargetAtTime(dom.dMix.value,ctx.currentTime,0.05); revG.gain.setTargetAtTime(dom.rev.value,ctx.currentTime,0.05);
+                }
+
+                [dom.drive, dom.engine, dom.tone, dom.rev, dom.dMix].forEach(m => m.oninput = updateParams);
+                document.querySelectorAll('.m-btn').forEach(b => b.onclick = () => { targetV=3.0; setMode(b.dataset.mode); });
+                
+                dom.glitch.onclick = () => { 
+                    targetV=8.0; dom.drive.value=Math.random()*50; dom.engine.value=Math.floor(Math.random()*4);
+                    dom.tone.value=Math.random()*24-12; dom.dMix.value=Math.random()*0.8; dom.rev.value=Math.random(); 
+                    updateParams(); let btns = document.querySelectorAll('.m-btn'); setMode(btns[Math.floor(Math.random()*btns.length)].dataset.mode);
+                };
+
+                dom.export.onclick = async () => {
+                    if(!buffer) return;
+                    const off = new OfflineAudioContext(buffer.numberOfChannels, buffer.length+(ctx.sampleRate*4), ctx.sampleRate);
+                    const s=off.createBufferSource(), d=off.createGain(), sh=off.createWaveShaper(), t=off.createBiquadFilter();
+                    s.buffer=buffer; d.gain.value=1+(parseFloat(dom.drive.value)/15); sh.curve=makeCurve(parseFloat(dom.drive.value)*2.5, parseInt(dom.engine.value)); t.type='lowshelf'; t.frequency.value=800; t.gain.value=parseFloat(dom.tone.value);
+                    s.connect(d); d.connect(sh); sh.connect(t); t.connect(off.destination); s.start();
+                    const res = await off.startRendering();
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([toWav(res)], {type:'audio/wav'})); a.download = 'volt_pro.wav'; a.click();
+                };
+
+                function toWav(buf) {
+                    let n=buf.numberOfChannels, len=buf.length*n*2+44, a=new ArrayBuffer(len), v=new DataView(a), p=0;
+                    const s16=d=>{v.setInt16(p,d,true); p+=2;}, s32=d=>{v.setUint32(p,d,true); p+=4;};
+                    s32(0x46464952); s32(len-8); s32(0x45564157); s32(0x20746d66); s32(16); s16(1); s16(n); s32(buf.sampleRate); s32(buf.sampleRate*2*n); s16(n*2); s16(16); s32(0x61746164); s32(len-p-4);
+                    for(let i=0; i<buf.length; i++) for(let c=0; c<n; c++) s16(Math.max(-1,Math.min(1,buf.getChannelData(c)[i]))*32767);
+                    return a;
+                }
+            } catch (err) {
+                console.log("Initialization halted: ", err);
+            }
+        })();
+    </script>
+</body>
+</html>
